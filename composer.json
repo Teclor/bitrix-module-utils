@@ -1,0 +1,22 @@
+{
+  "name": "teclor/bitrix-module-utils",
+  "description": "Утилиты для инсталляции и использования модулей Битрикс",
+  "type": "library",
+  "require": {
+    "php": ">=8.2"
+  },
+  "autoload": {
+    "psr-4": {
+      "Module\\Utils\\": "src/"
+    }
+  },
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Antoniy Bondarenko",
+      "email": "teclorian@gmail.com"
+    }
+  ],
+  "keywords": ["bitrix", "bitrix-module", "module", "битрикс", "модуль", "D7", "битрикс модуль"],
+  "homepage": "https://github.com/Teclor/bitrix-module-utils"
+}
