@@ -82,7 +82,7 @@ class File extends Helper
         foreach ($listModuleAdminFiles as $fileName) {
             $putResult = IOFile::putFileContents(
                 self::getAdminPageDirectory() . '/' . $fileName,
-                '<? require($_SERVER["DOCUMENT_ROOT"]."' . $this->getModuleAdminPath(true) . $fileName . '"); ?>',
+                '<? require($_SERVER["DOCUMENT_ROOT"]."' . $this->getModuleAdminPath(true) . '/' . $fileName . '"); ?>',
             );
             if ($putResult === false) {
                 static::setError('Не удалось установить файл для админпанели. Название файла: ' . $fileName);
@@ -98,7 +98,7 @@ class File extends Helper
         $listModuleAdminFiles = $this->getListModuleAdminFiles();
 
         foreach ($listModuleAdminFiles as $fileName) {
-            $deleteResult = IOFile::deleteFile(self::getAdminPageDirectory() . '/' . $this->getModuleId() . '_' . $fileName);
+            $deleteResult = IOFile::deleteFile(self::getAdminPageDirectory() . '/' . $fileName);
             if ($deleteResult === false) {
                 static::setError('Не удалось удалить файл из админпанели. Название файла: ' . $fileName);
                 return false;
