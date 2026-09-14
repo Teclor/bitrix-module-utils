@@ -81,7 +81,7 @@ class File extends Helper
         $listModuleAdminFiles = $this->getListModuleAdminFiles();
         foreach ($listModuleAdminFiles as $fileName) {
             $putResult = IOFile::putFileContents(
-                self::getAdminPageDirectory() . '/' . $this->getModuleId() . '_' . $fileName,
+                self::getAdminPageDirectory() . '/' . $fileName,
                 '<? require($_SERVER["DOCUMENT_ROOT"]."' . $this->getModuleAdminPath(true) . $fileName . '"); ?>',
             );
             if ($putResult === false) {

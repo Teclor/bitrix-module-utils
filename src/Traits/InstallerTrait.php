@@ -2,10 +2,13 @@
 
 namespace Module\Utils\Traits;
 
+use Bitrix\Main\Application;
 use Bitrix\Main\ArgumentException;
 use Bitrix\Main\IO\InvalidPathException;
+use Bitrix\Main\Localization\Loc;
 use Bitrix\Main\ModuleManager;
 use Bitrix\Main\SystemException;
+use CAdminMessage;
 use Module\Utils\AbstractModule;
 use Module\Utils\Exceptions\FileNotFoundException;
 use Module\Utils\Exceptions\ClassNotFoundException;
@@ -91,29 +94,61 @@ trait InstallerTrait
      * @throws InvalidPathException
      * @throws SystemException
      */
-    public function DoUninstall()
+    public function DoUninstall(): void
     {
-        foreach ($this->getInstallDuties() as $duty) {
-            /** @var Helper|File|Events|DB|Module|Composer $helper */
-            $helper = $this->getHelper($duty);
-            $installResult = match ($duty) {
-                InstallDutiesEnum::ADMIN => $helper->deleteAdminFiles(),
-                InstallDutiesEnum::FILES => $helper->deleteFiles(),
-                InstallDutiesEnum::EVENTS => $helper::unregisterEvents(...$this->getEvents()),
-                InstallDutiesEnum::ORM_EVENTS => $helper::unregisterOrmEvents(...$this->getOrmEvents()),
-                InstallDutiesEnum::SQL => $helper->uninstallSql(),
-                InstallDutiesEnum::MIGRATIONS => $helper->uninstallMigrations(),
-                default => true
-            };
-            if (!$installResult) {
-                return false;
+        global $APPLICATION, $step;
+        $step = (int)$step;
+
+        $request = \Bitrix\Main\Application::getInstance()->getContext()->getRequest();
+        $saveData = $request->get('saveData') === 'Y';
+        $isScript = $request->get('isScriptInstallation') === 'Y' || $request->get('ajax') === 'Y';
+
+        $duties = $this->getInstallDuties();
+        $hasDbDuties = in_array(InstallDutiesEnum::SQL, $duties, true) || in_array(InstallDutiesEnum::MIGRATIONS, $duties, true);
+
+        try {
+            // Шаг 1: Форма подтверждения
+            if ($hasDbDuties && $step < 2 && !$isScript) {
+                $this->renderUninstallConfirmationForm();
+            }
+
+            // Шаг 2: Фактическое удаление
+            if (!$hasDbDuties || $step === 2 || $isScript) {
+                foreach ($duties as $duty) {
+                    if ($saveData && in_array($duty, [InstallDutiesEnum::SQL, InstallDutiesEnum::MIGRATIONS], true)) {
+                        continue;
+                    }
+
+                    /** @var Helper|File|Events|DB|Module|Composer $helper */
+                    $helper = $this->getHelper($duty);
+                    $installResult = match ($duty) {
+                        InstallDutiesEnum::ADMIN => $helper->deleteAdminFiles(),
+                        InstallDutiesEnum::FILES => $helper->deleteFiles(),
+                        InstallDutiesEnum::EVENTS => $helper::unregisterEvents(...$this->getEvents()),
+                        InstallDutiesEnum::ORM_EVENTS => $helper::unregisterOrmEvents(...$this->getOrmEvents()),
+                        InstallDutiesEnum::SQL => $helper->uninstallSql(),
+                        InstallDutiesEnum::MIGRATIONS => $helper->uninstallMigrations(),
+                        default => true
+                    };
+
+                    if (!$installResult) {
+                        throw new SystemException('Ошибка при выполнении задачи установки: ' . $duty->name);
+                    }
+                }
+
+                ModuleManager::unRegisterModule($this->MODULE_ID);
+                $this->InstallTasks();
+
+                if (!$isScript) {
+                    $this->renderUninstallResultForm(true);
+                }
+            }
+        } catch (\Throwable $exception) {
+            Helper::setError($exception->getMessage());
+            if (!$isScript) {
+                $this->renderUninstallResultForm(false);
             }
         }
-
-        ModuleManager::unRegisterModule($this->MODULE_ID);
-        $this->InstallTasks();
-
-        return true;
     }
 
     public function getHelper(InstallDutiesEnum $duty): Helper
@@ -207,5 +242,70 @@ trait InstallerTrait
                 "[W] запись",
             ],
         ];
+    }
+
+    protected function renderUninstallConfirmationForm(): void
+    {
+        // Обязательное объявление глобальных переменных для корректной работы файлов ядра Битрикс
+        global $USER, $APPLICATION, $DB, $USER_FIELD_MANAGER, $adminPage, $adminMenu, $adminChain;
+
+        $APPLICATION->SetTitle(\Bitrix\Main\Localization\Loc::getMessage("MOD_UNINST_WARN") . ' ' . $this->MODULE_NAME);
+        require $_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/main/include/prolog_admin_after.php";
+
+        ?>
+        <form action="<?= $APPLICATION->GetCurPage() ?>">
+            <?= bitrix_sessid_post() ?>
+            <input type="hidden" name="lang" value="<?= LANGUAGE_ID ?>">
+            <input type="hidden" name="id" value="<?= htmlspecialcharsbx($this->MODULE_ID) ?>">
+            <input type="hidden" name="uninstall" value="Y">
+            <input type="hidden" name="step" value="2">
+
+            <?php \CAdminMessage::ShowMessage(\Bitrix\Main\Localization\Loc::getMessage("MOD_UNINST_WARN")); ?>
+
+            <p><?= \Bitrix\Main\Localization\Loc::getMessage("MOD_UNINST_SAVE") ?></p>
+            <p>
+                <input type="checkbox" name="saveData" id="saveData" value="Y" checked>
+                <label for="saveData"><?= \Bitrix\Main\Localization\Loc::getMessage("MOD_UNINST_SAVE_TABLES") ?></label>
+            </p>
+
+            <input type="submit" name="inst" value="<?= \Bitrix\Main\Localization\Loc::getMessage("MOD_UNINST_DEL") ?>" class="adm-btn-save">
+        </form>
+        <?php
+
+        require $_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/main/include/epilog_admin.php";
+        die(); // Прерываем скрипт, чтобы не дать ядру запустить LocalRedirect
+    }
+
+    protected function renderUninstallResultForm(bool $isSuccess): void
+    {
+        global $USER, $APPLICATION, $DB, $USER_FIELD_MANAGER, $adminPage, $adminMenu, $adminChain;
+
+        $APPLICATION->SetTitle('Удаление модуля ' . $this->MODULE_NAME);
+        require $_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/main/include/prolog_admin_after.php";
+
+        if ($isSuccess) {
+            \CAdminMessage::ShowNote(\Bitrix\Main\Localization\Loc::getMessage("MOD_UNINST_OK"));
+        } else {
+            $details = '';
+            if ($e = $APPLICATION->GetException()) {
+                $details = $e->GetString();
+            }
+            \CAdminMessage::ShowMessage([
+                'TYPE' => 'ERROR',
+                'MESSAGE' => \Bitrix\Main\Localization\Loc::getMessage("MOD_UNINST_ERR"),
+                'DETAILS' => $details,
+                'HTML' => true
+            ]);
+        }
+
+        ?>
+        <form action="<?= $APPLICATION->GetCurPage() ?>">
+            <input type="hidden" name="lang" value="<?= LANGUAGE_ID ?>">
+            <input type="submit" name="" value="<?= \Bitrix\Main\Localization\Loc::getMessage("MOD_BACK") ?>" class="adm-btn-save">
+        </form>
+        <?php
+
+        require $_SERVER["DOCUMENT_ROOT"] . "/bitrix/modules/main/include/epilog_admin.php";
+        die();
     }
 }
