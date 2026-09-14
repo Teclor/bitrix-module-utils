@@ -54,8 +54,9 @@ class File extends Helper
         return str_starts_with($filePath, Application::getDocumentRoot());
     }
 
-    public function getListModuleAdminFiles(array $filesToSkip = []): array
+    public function getListModuleAdminFiles(?array $filesToSkip = null): array
     {
+        $filesToSkip ??= ['menu.php'];
         $listModuleAdminFiles = [];
 
         $moduleAdminPath = $this->getModuleAdminPath();
@@ -76,9 +77,9 @@ class File extends Helper
         return $listModuleAdminFiles;
     }
 
-    public function installAdminFiles(): bool
+    public function installAdminFiles(?array $filesToSkip = null): bool
     {
-        $listModuleAdminFiles = $this->getListModuleAdminFiles();
+        $listModuleAdminFiles = $this->getListModuleAdminFiles($filesToSkip);
         foreach ($listModuleAdminFiles as $fileName) {
             $putResult = IOFile::putFileContents(
                 self::getAdminPageDirectory() . '/' . $fileName,
@@ -93,9 +94,9 @@ class File extends Helper
         return true;
     }
 
-    public function deleteAdminFiles(): bool
+    public function deleteAdminFiles(?array $filesToSkip = null): bool
     {
-        $listModuleAdminFiles = $this->getListModuleAdminFiles();
+        $listModuleAdminFiles = $this->getListModuleAdminFiles($filesToSkip);
 
         foreach ($listModuleAdminFiles as $fileName) {
             $deleteResult = IOFile::deleteFile(self::getAdminPageDirectory() . '/' . $fileName);

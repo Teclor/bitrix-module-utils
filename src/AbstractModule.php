@@ -15,7 +15,7 @@ use Bitrix\Main\LoaderException;
  */
 abstract class AbstractModule
 {
-    protected static string $moduleId;
+    protected static array $moduleIdByClass = [];
 
     abstract public static function getModuleVersion(): string;
     abstract public static function getModuleVersionDate(): string;
@@ -23,15 +23,15 @@ abstract class AbstractModule
 
     public static function setModuleId(string $moduleId): void
     {
-        static::$moduleId = $moduleId;
+        static::$moduleIdByClass[static::class] = $moduleId;
     }
 
     public static function getModuleId(): string
     {
-        if (!isset(static::$moduleId)) {
+        if (!isset(static::$moduleIdByClass[static::class])) {
             static::setModuleId(static::getModuleIdByPath());
         }
-        return static::$moduleId;
+        return static::$moduleIdByClass[static::class];
     }
 
     public static function getModuleName(): string
