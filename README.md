@@ -176,3 +176,41 @@ $options->process();
 *   `FileNotFoundException` — выбрасывается, если требуемый файл отсутствует на диске.
 *   `ClassNotFoundException` — выбрасывается, если файл подключен, но искомый класс в нем отсутствует.
 *   `InstallDutyException` — возникает при передаче неизвестной задачи в `getInstallDuties`. Можно также использовать для ошибок в процессе выполнения задач.
+
+## Использование меню
+```php
+<?php
+
+use Bitrix\Main\Application;
+use Module\Utils\Install\MenuItem;
+
+// Проверка прав, если требуется скрыть меню для пользователей без прав на модуль
+// $moduleRight = $APPLICATION->GetGroupRight('vendor.testmodule');
+// if ($moduleRight < 'R') { return false; }
+
+$menu = MenuItem::make('Мой крутой модуль', 100)
+    ->setParentMenu('global_menu_settings') // Привязка к глобальному разделу "Настройки"
+    ->setItemsId('vendor_testmodule_root')
+    ->setIcon('sys_menu_icon')
+    ->setPageIcon('sys_page_icon')
+    ->setModuleId('vendor.testmodule') // Авто-скрытие пункта при отсутствии прав на модуль
+    ->addItem(
+        MenuItem::make('Список сущностей', 10)
+            ->setUrl('vendor_testmodule_list.php?lang=' . LANGUAGE_ID)
+            ->addMoreUrl('vendor_testmodule_edit.php') // Подсвечивать пункт при нахождении на странице редактирования
+            ->setTitle('Управление записями модуля')
+    )
+    ->addItem(
+        MenuItem::make('Вложенный справочник', 20)
+            ->setIcon('default_menu_icon')
+            ->setItemsId('vendor_testmodule_sub')
+            ->addItem(
+                MenuItem::make('Справочник 1', 10)->setUrl('vendor_testmodule_dict1.php?lang=' . LANGUAGE_ID)
+            )
+            ->addItem(
+                MenuItem::make('Справочник 2', 20)->setUrl('vendor_testmodule_dict2.php?lang=' . LANGUAGE_ID)
+            )
+    );
+
+return $menu->toArray();
+```
